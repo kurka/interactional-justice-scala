@@ -9,4 +9,7 @@ object game extends App {
   net.assignRandomHead
   println("Hello World")
   println(net)
+
+  val lpgpGame = new LPGP(net)
+  lpgpGame.run(10)
 }

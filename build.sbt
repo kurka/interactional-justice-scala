@@ -1,4 +1,4 @@
-name := "untitled"
+name := "interactional-justice-scala"
 
 version := "1.0"
 

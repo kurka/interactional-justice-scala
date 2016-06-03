@@ -1,8 +1,12 @@
-/**
-  * Created by kurka on 01/06/16.
-  */
-class LPGP {
-  val all_nodes = List.range(1, 5)
+import Network.Net
+
+class LPGP(net: Net) {
+  def run(nturns: Int) = 0 to nturns foreach {
+    turn => {
+//      net.updateAgentStatusAndRoles
+      net.demandProvide()
+      println(turn)
+    }}
 //  val net = Map
 //  def round() = {
 //    update_

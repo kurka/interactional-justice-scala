@@ -15,5 +15,10 @@ class Net(size: Int, nCheaters:Int, r:scala.util.Random) {
     agents.update(randIdx, agents(randIdx).setHead())
   }
 
+  def demandProvide() = {
+    val demands = agents map _.demand
+
+  }
+
   override def toString = agents.map(_.toString) mkString "\n"
 }
