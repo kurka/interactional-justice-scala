@@ -5,31 +5,36 @@
   import scala.util.Random
 
   case class InstitutionalFacts(rnd: Random,
-                                available:Double = 0.0,
-                                provided:Double = 0.0,
-                                needed:Double = 0.0,
-                                demanded:Double = 0.0,
-                                allocated:Double = 0.0,
-                                appropriated:Double = 0.0){
+                                available: Option[Double],
+                                provided: Option[Double],
+                                needed: Option[Double],
+                                demanded: Option[Double],
+                                allocated: Option[Double],
+                                appropriated: Option[Double]
+                               ){
 
-    def update_available_demanded() = {
+    def updateAvailableDemanded() = {
+      assert(available.isEmpty && provided.isEmpty && needed.isEmpty &&
+        demanded.isEmpty && allocated.isEmpty && appropriated.isEmpty)
       val new_av = rnd.nextDouble()
       val new_need = new_av + rnd.nextDouble() * (1 - new_av)
-      this.copy(available=new_av, needed=new_need)
+      this.copy(available=Some(new_av), needed=Some(new_need))
     }
 
-    def update_demand_provision(shouldCheat: Boolean, cheatOn: CheatMode) = {
+    def updateDemandProvision(shouldCheat: Boolean, cheatOn: CheatMode) = {
+      assert(available.isDefined && needed.isDefined)
       (shouldCheat, cheatOn) match {
-        case (false, _) | (true, None) | (true, Appropriation) => this.copy(provided=this.available, demanded=this.needed)
-        case (true, Provision) => this.copy(provided=rnd.nextDouble()*this.available, demanded = this.needed)
-        case (true, Demand) => this.copy(provided=this.available, demanded=rnd.nextDouble()*(1-this.needed))
+        case (false, _) | (true, NoCheat) | (true, Appropriation) => this.copy(provided=this.available, demanded=this.needed)
+        case (true, Provision) => this.copy(provided=Some(rnd.nextDouble()*this.available.get), demanded = this.needed)
+        case (true, Demand) => this.copy(provided=this.available, demanded=Some(rnd.nextDouble()*(1-this.needed.get)))
       }
     }
 
-    def update_allocated_appropriated(alloc: Double, shouldCheat:Boolean, cheatOn:CheatMode) = {
+    def updateAllocatedAppropriated(alloc: Double, shouldCheat:Boolean, cheatOn:CheatMode) = {
+      assert(available.isDefined && provided.isDefined && needed.isDefined && demanded.isDefined)
       (shouldCheat, cheatOn) match {
-        case (true, Appropriation) => this.copy(allocated=alloc, appropriated= alloc + rnd.nextDouble() * (1-alloc))
-        case (_, _) =>  this.copy(allocated=alloc, appropriated=alloc)
+        case (true, Appropriation) => this.copy(allocated=Some(alloc), appropriated=Some(alloc + rnd.nextDouble() * (1-alloc)))
+        case (_, _) =>  this.copy(allocated=Some(alloc), appropriated=Some(alloc))
       }
     }
 

@@ -11,7 +11,7 @@ case class Agent(id: Int, var neighbours: Set[Int], rndSeed: Long,
                  var head:Boolean = false,
                  var utility:Double = 0.0) {
   val rnd = new Random(rndSeed)
-  var facts = InstitutionalFacts(rnd)
+//  var facts = InstitutionalFacts(rnd)
   var claims = Claims()
   var stats = Stats()
   def phi = claims.getPhi
@@ -19,13 +19,17 @@ case class Agent(id: Int, var neighbours: Set[Int], rndSeed: Long,
   def new_turn(): Unit = {
     //TODO: update agent status and roles
     //set need and demand
-    facts = facts.update_available_demanded()
+    val initialFacts = InstitutionalFacts(rnd, None, None, None, None, None, None)
+
+    val step1Facts = initialFacts.updateAvailableDemanded()
     //define demand and provision
-    facts = facts.update_demand_provision(false, None) //TODO: implement cheating
+    val step2Facts = step1Facts.updateDemandProvision(shouldCheat = false, NoCheat) //TODO: implement cheating
+    step2Facts
   }
 
-  def receiveAllocations(turnAlloc: Double) = {
-    facts = facts.update_allocated_appropriated(turnAlloc, false, None) //TODO: implement cheating
+  def receiveAllocations(turnAlloc: Double, step2Facts: InstitutionalFacts) = {
+    val finalFacts = step2Facts.updateAllocatedAppropriated(turnAlloc, shouldCheat = false, NoCheat) //TODO: implement cheating
+    finalFacts
   }
 
 //  def updateOpinions() = {
