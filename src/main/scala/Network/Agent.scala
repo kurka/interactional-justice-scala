@@ -16,7 +16,7 @@ case class Agent(id: Int, var neighbours: Set[Int], rndSeed: Long,
   var stats = Stats()
   def phi = claims.getPhi
 
-  def new_turn(): Unit = {
+  def new_turn(): InstitutionalFacts = {
     //TODO: update agent status and roles
     //set need and demand
     val initialFacts = InstitutionalFacts(rnd, None, None, None, None, None, None)
@@ -31,6 +31,17 @@ case class Agent(id: Int, var neighbours: Set[Int], rndSeed: Long,
     val finalFacts = step2Facts.updateAllocatedAppropriated(turnAlloc, shouldCheat = false, NoCheat) //TODO: implement cheating
     finalFacts
   }
+
+  def trust(neig: Agent): Double = {
+    assert(neighbours contains neig.id, "trying to compute trust of non-connected agent!")
+    (neig.claims.allClaims, this.claims.allClaims).zipped.map((nc, tc) => logistic(math.abs(nc - tc))).sum
+    //TODO: reinforcement learning, looking to past!!!
+    //TODO: compare to environment (eq 4b)
+    //TODO: trust propagation!!!
+  }
+
+  def logistic(x: Double, k:Double = 20, thresh: Double = 0.3) =
+    1 - (1 / (1 + math.exp(-k*(x-thresh))))
 
 //  def updateOpinions() = {
 //    claims = claims.updateClaims(facts)
