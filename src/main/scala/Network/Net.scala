@@ -1,6 +1,7 @@
 package Network
 
 import scala.collection.mutable.ArrayBuffer
+import scala.collection.parallel.mutable.ParArray
 import scala.util.Random
 
 
@@ -10,24 +11,29 @@ class Net(size: Int, nNeighbours: Int, nCheaters:Int, rndSeed: Int) {
   val head = rnd.nextInt(size)
   val nNonCheaters = size - nCheaters
 
-  val agents = ((0 until size) map { idx =>
+  val agents = (0 until size map { idx =>
     if (idx != head) Agent(idx, get_init_neigh(idx), rnd.nextLong())
     else Agent(idx, get_init_neigh(idx), rnd.nextLong(), head = true)
   }).toParArray
 
   def get_init_neigh(idx: Int) = (nei_offsets map {off => (idx+off+size)%size}) - idx
 
-
   def turn() = {
     //demand provide
     val step2Facts = agents map {_.new_turn()}
     val pool = step2Facts.map(_.available.get).sum
     //get allocation order
-    val allocOrder = rnd.shuffle(agents zip step2Facts).toArray.sortWith(reputationDissatisfaction(_) > reputationDissatisfaction(_))
-    val (remPool, allocations) = allocOrder.foldLeft((pool, List[Double]))({case ((remPool: Double, allocs: List[Double]), (ag: Agent, facts: InstitutionalFactsn)) => {
-      val newAlloc = (math.min(facts.demanded.get, remPool)
-      (remPool-newAlloc, allocs. :+ newAlloc)
-    }})
+    val allocOrder = rnd.shuffle(agents.zip(step2Facts).toList).sortWith(reputationDissatisfaction(_) > reputationDissatisfaction(_))
+    val (remPool, allocations) = allocOrder.foldLeft((pool, List[Double]()))({
+      case ((remPool: Double, allocs: List[Double]), (ag: Agent, facts: InstitutionalFacts)) =>
+        val newAlloc = math.min(facts.demanded.get, remPool)
+        (remPool-newAlloc, allocs :+ newAlloc)
+      })
+    assert(remPool==0, "The pot wasn't completly distributed!")
+    val finalFacts = rnd.shuffle(allocOrder zip allocations).toParArray.map {
+      case ((ag, agfacts), alloc) => (ag, ag.receiveAllocations(alloc, agfacts))}
+    val roundStats = finalFacts.map {case (ag, fFacts) => ag.updateOpinions(fFacts)}
+    aggregateStats(roundStats)
   }
 
 
@@ -43,6 +49,11 @@ class Net(size: Int, nNeighbours: Int, nCheaters:Int, rndSeed: Int) {
   }
 
 
+  def aggregateStats(roundStats: ParArray[Stats]) = {
+    val (allocations, satisfactions, utilities) = roundStats.map({
+      case agStats => (agStats.totalAllocation/agStats.turnsPlayed, agStats.satisfaction, agStats.utility)}).toArray.unzip3
+    AggregatedStats(allocations, satisfactions, utilities)
+  }
 
   override def toString = agents.map(_.toString) mkString "\n"
 }

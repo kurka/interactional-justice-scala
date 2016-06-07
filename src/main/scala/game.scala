@@ -1,15 +1,14 @@
 import Network.Net
 
-import scala.util.Random
-
-
 object game extends App {
-  val rnd = new Random(13)
-  val net = new Net(10, 2, rnd)
-  net.assignRandomHead
-  println("Hello World")
+  val rndSeed = 13
+  val net = new Net(10, 2, 0, rndSeed=rndSeed)
+  val nTurns = 1000
+
   println(net)
 
-  val lpgpGame = new LPGP(net)
-  lpgpGame.run(10)
+//  (1 until nTurns).foreach(println(net.turn()))
+  for (t <- 1 until nTurns) {
+    println(t, net.turn())
+  }
 }
