@@ -27,6 +27,7 @@
         case (false, _) | (true, NoCheat) | (true, Appropriation) => this.copy(provided=this.available, demanded=this.needed)
         case (true, Provision) => this.copy(provided=Some(rnd.nextDouble()*this.available.get), demanded = this.needed)
         case (true, Demand) => this.copy(provided=this.available, demanded=Some(rnd.nextDouble()*(1-this.needed.get)))
+        case (_, _) => this.copy(provided=this.available, demanded=this.needed)
       }
     }
 

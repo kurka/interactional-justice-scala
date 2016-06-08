@@ -1,11 +1,14 @@
 package Network
 
+import Network.Net.Turn
+import akka.actor.{Actor, Props}
+
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.parallel.mutable.ParArray
 import scala.util.Random
 
 
-class Net(size: Int, nNeighbours: Int, nCheaters:Int, rndSeed: Int) {
+class Net(size: Int, nNeighbours: Int, nCheaters:Int, rndSeed: Int) extends Actor {
   val rnd = new Random(rndSeed)
   val nei_offsets = (-nNeighbours/2 to (nNeighbours/2)).toSet
   val head = rnd.nextInt(size)
@@ -56,4 +59,25 @@ class Net(size: Int, nNeighbours: Int, nCheaters:Int, rndSeed: Int) {
   }
 
   override def toString = agents.map(_.toString) mkString "\n"
+
+  def receive = {
+    case Turn(turnNumber) => {
+      val turnStats = turn()
+      sender() ! turnStats
+    }
+  }
 }
+
+object Net {
+  case class Turn(turnNumber: Int)
+  def props(size: Int, nNeighbours: Int, nCheaters:Int, rndSeed: Int): Props = Props(new Net(size, nNeighbours, nCheaters, rndSeed))
+}
+
+//class Greeter extends Actor {
+//  var greeting = ""
+//
+//  def receive = {
+//    case WhoToGreet(who) => greeting = s"hello, $who"
+//    case Greet           => sender ! Greeting(greeting) // Send the current greeting back to the sender
+//  }
+//}
