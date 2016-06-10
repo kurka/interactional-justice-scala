@@ -1,5 +1,5 @@
 import Network.Net
-import Network.Net.Turn
+import Network.Net.StartTurn
 import akka.actor.{Actor, ActorRef, ActorSystem, Inbox, PoisonPill, Props}
 
 import scala.concurrent.duration._
@@ -17,7 +17,7 @@ object ActorsGame extends App {
 
   //  (1 until nTurns).foreach(println(net.turn()))
   for (t <- 1 until nTurns) {
-      inbox.send(net, Turn(t))
+      inbox.send(net, StartTurn(t))
       println(inbox.receive(10.seconds))
   }
   net ! PoisonPill

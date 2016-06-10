@@ -13,6 +13,8 @@
                                 appropriated: Option[Double]
                                ){
 
+    def erase() = InstitutionalFacts(rnd, None, None, None, None, None, None)
+
     def updateAvailableDemanded() = {
       assert(available.isEmpty && provided.isEmpty && needed.isEmpty &&
         demanded.isEmpty && allocated.isEmpty && appropriated.isEmpty)
@@ -39,10 +41,4 @@
       }
     }
 
-  //  def update_available(new_value: Double) = this.copy(available=new_value)
-  //  def update_provided(new_value: Double) = this.copy(provided=new_value)
-  //  def update_needed(new_value: Double) = this.copy(needed=new_value)
-  //  def update_demanded(new_value: Double) = this.copy(demanded=new_value)
-  //  def update_allocated(new_value: Double) = this.copy(allocated=new_value)
-  //  def update_appropriated(new_value: Double) = this.copy(appropriated=new_value)
   }
