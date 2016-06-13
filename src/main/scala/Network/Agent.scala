@@ -9,7 +9,7 @@ import akka.actor.{Actor, ActorRef, Props}
 
 
 class Agent(id: Int, var neighbours: Set[Int], rndSeed: Long,
-                 cheater:Boolean = false, var head:Boolean = false) extends Actor {
+            cheater:Boolean = false, var head:Boolean = false) extends Actor {
   val rnd = new Random(rndSeed)
   var facts = InstitutionalFacts(rnd, None, None, None, None, None, None)
   var claims = Claims(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
@@ -34,7 +34,7 @@ class Agent(id: Int, var neighbours: Set[Int], rndSeed: Long,
   }
 
   def trust(neig: Agent): Double = {
-    assert(neighbours contains neig.id, "trying to compute trust of non-connected agent!")
+//    assert(neighbours contains neig.id, "trying to compute trust of non-connected agent!")
     (neig.claims.allClaims, this.claims.allClaims).zipped.map({
       (nc, tc) => logistic(math.abs(nc - tc), k=15, thresh=0.25)
     }).sum
@@ -54,15 +54,14 @@ class Agent(id: Int, var neighbours: Set[Int], rndSeed: Long,
   }
 
   def receive = {
-    case StartTurn(turnNumber) => {
+    case StartTurn(turnNumber) =>
       val opinionAndTrusts = newTurn()
       sender() ! opinionAndTrusts
-    }
-    case Allocation(alloc) => {
+
+    case Allocation(alloc) =>
       receiveAllocations(alloc)
       val turnOpinion = updateOpinions()
       sender() ! TurnFinished(turnOpinion)
-    }
 
   }
 }

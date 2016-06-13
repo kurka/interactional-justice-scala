@@ -10,7 +10,7 @@ import scala.collection.parallel.mutable.ParArray
 import scala.util.Random
 
 
-class Net(size: Int, nNeighbours: Int, nCheaters:Int, rndSeed: Int) extends Actor {
+class Net(size: Int, nNeighbours: Int, nCheaters:Int, rndSeed: Int, inbox: ActorRef) extends Actor {
   val rnd = new Random(rndSeed)
   val nei_offsets = (-nNeighbours/2 to (nNeighbours/2)).toSet
   val head = rnd.nextInt(size)
@@ -29,36 +29,36 @@ class Net(size: Int, nNeighbours: Int, nCheaters:Int, rndSeed: Int) extends Acto
 
   def get_init_neigh(idx: Int) = (nei_offsets map {off => (idx+off+size)%size}) - idx
 
-//  def turn() = {
-//    //demand provide
-//    val step2Facts = agents map {_.newTurn()}
-//    val pool = step2Facts.map(_.available.get).sum
-//    //get allocation order
-//    val allocOrder = rnd.shuffle(agents.zip(step2Facts).toList).sortWith(reputationDissatisfaction(_) > reputationDissatisfaction(_))
-//    val (remPool, allocations) = allocOrder.foldLeft((pool, List[Double]()))({
-//      case ((remPool: Double, allocs: List[Double]), (ag: Agent, facts: InstitutionalFacts)) =>
-//        val newAlloc = math.min(facts.demanded.get, remPool)
-//        (remPool-newAlloc, allocs :+ newAlloc)
-//      })
-//    assert(remPool==0, "The pot wasn't completly distributed!")
-//    val finalFacts = rnd.shuffle(allocOrder zip allocations).toParArray.map {
-//      case ((ag, agfacts), alloc) => (ag, ag.receiveAllocations(alloc, agfacts))}
-//    val roundStats = finalFacts.map {case (ag, fFacts) => ag.updateOpinions(fFacts)}
-//    aggregateStats(roundStats)
-//  }
+  //  def turn() = {
+  //    //demand provide
+  //    val step2Facts = agents map {_.newTurn()}
+  //    val pool = step2Facts.map(_.available.get).sum
+  //    //get allocation order
+  //    val allocOrder = rnd.shuffle(agents.zip(step2Facts).toList).sortWith(reputationDissatisfaction(_) > reputationDissatisfaction(_))
+  //    val (remPool, allocations) = allocOrder.foldLeft((pool, List[Double]()))({
+  //      case ((remPool: Double, allocs: List[Double]), (ag: Agent, facts: InstitutionalFacts)) =>
+  //        val newAlloc = math.min(facts.demanded.get, remPool)
+  //        (remPool-newAlloc, allocs :+ newAlloc)
+  //      })
+  //    assert(remPool==0, "The pot wasn't completly distributed!")
+  //    val finalFacts = rnd.shuffle(allocOrder zip allocations).toParArray.map {
+  //      case ((ag, agfacts), alloc) => (ag, ag.receiveAllocations(alloc, agfacts))}
+  //    val roundStats = finalFacts.map {case (ag, fFacts) => ag.updateOpinions(fFacts)}
+  //    aggregateStats(roundStats)
+  //  }
 
 
-//  def reputationDissatisfaction(agFacts: (Agent, InstitutionalFacts)) = {
-//    agFacts match {
-//      case (ag, _) =>
-//        val (ts, l) = ag.neighbours.foldLeft((0.0, 0)) {
-//          case ((total, count), nei) => (total + agents(nei).trust(ag), count + 1)
-//        }
-//        val reputation = ts / l
-//        val demand = 1 - ag.phi
-//        reputation * demand
-//    }
-//  }
+  //  def reputationDissatisfaction(agFacts: (Agent, InstitutionalFacts)) = {
+  //    agFacts match {
+  //      case (ag, _) =>
+  //        val (ts, l) = ag.neighbours.foldLeft((0.0, 0)) {
+  //          case ((total, count), nei) => (total + agents(nei).trust(ag), count + 1)
+  //        }
+  //        val reputation = ts / l
+  //        val demand = 1 - ag.phi
+  //        reputation * demand
+  //    }
+  //  }
 
 
   def aggregateStats(roundStats: ArrayBuffer[Stats]) = {
@@ -70,12 +70,15 @@ class Net(size: Int, nNeighbours: Int, nCheaters:Int, rndSeed: Int) extends Acto
   override def toString = agents.map(_.toString) mkString "\n"
 
   def receive = {
-    case StartTurn(turnNumber) => {
+    case StartTurn(turnNumber) =>
       agents.foreach(_ ! StartTurn(turnNumber))
       agentsRepDis.clear()
       pool = 0.0
-    }
-    case OpinionAndTrust(ag, opinion, trusts, facts) => {
+      agentsFacts.clear()
+      statsAggregator.clear()
+
+
+    case OpinionAndTrust(ag, opinion, trusts, facts) =>
       agentsRepDis += (ag -> (1-opinion)) //TODO: handle trust
       agentsFacts(ag) = facts
       pool += facts.provided.get
@@ -83,26 +86,24 @@ class Net(size: Int, nNeighbours: Int, nCheaters:Int, rndSeed: Int) extends Acto
         val allocOrder = rnd.shuffle(agentsRepDis).sortWith(_._2 > _._2)
         // perform allocation
         val (remPool, allocations) = allocOrder.foldLeft((pool, List[Double]()))({
-          case ((remPool: Double, allocs: List[Double]), (ag: Agent, _)) =>
+          case ((remPool: Double, allocs: List[Double]), (ag: ActorRef, _)) =>
             val newAlloc = math.min(agentsFacts(ag).demanded.get, remPool)
             (remPool-newAlloc, allocs :+ newAlloc)
         })
         assert(remPool==0, "The pot wasn't completly distributed!")
         rnd.shuffle(allocOrder zip allocations).foreach({
-          case ((ag, _), alloc) => ag ! Allocation(alloc) // FIXME: this doesnt work with cheating in appropriation!!
+          case ((ag: ActorRef, _), alloc: Double) => ag ! Allocation(alloc) // FIXME: this doesnt work with cheating in appropriation!!
         })
       }
-    }
 
     case TurnFinished(roundStats) =>
       statsAggregator += roundStats
-      if(statsAggregator.length == agents.length) sender ! aggregateStats(statsAggregator)
-
+      if(statsAggregator.length == agents.length) inbox ! aggregateStats(statsAggregator)
   }
 }
 
 object Net {
   case class StartTurn(turnNumber: Int)
   case class TurnFinished(roundStats: Stats)
-  def props(size: Int, nNeighbours: Int, nCheaters:Int, rndSeed: Int): Props = Props(new Net(size, nNeighbours, nCheaters, rndSeed))
+  def props(size: Int, nNeighbours: Int, nCheaters:Int, rndSeed: Int, inbox: ActorRef): Props = Props(new Net(size, nNeighbours, nCheaters, rndSeed, inbox))
 }

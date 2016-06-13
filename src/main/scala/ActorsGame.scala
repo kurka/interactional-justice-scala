@@ -9,16 +9,16 @@ object ActorsGame extends App {
   val rndSeed = 13
 //  val net = new Net(10, 2, 0, rndSeed=rndSeed)
   val system = ActorSystem("lpgp")
-  val net = system.actorOf(Net.props(10, 2, 0, rndSeed), "net")
   val inbox = Inbox.create(system)
-  val nTurns = 1000
+  val net = system.actorOf(Net.props(10, 2, 0, rndSeed, inbox.getRef()), "net")
+  val nTurns = 100
 
   println(net)
 
   //  (1 until nTurns).foreach(println(net.turn()))
   for (t <- 1 until nTurns) {
       inbox.send(net, StartTurn(t))
-      println(inbox.receive(10.seconds))
+      println(inbox.receive(60.seconds))
   }
   net ! PoisonPill
 //  system.stop(net)
