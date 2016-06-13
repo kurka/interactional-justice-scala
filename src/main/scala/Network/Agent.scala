@@ -16,12 +16,14 @@ class Agent(id: Int, rndSeed: Long, headAddr: ActorRef, cheater:Boolean = false,
   var facts = InstitutionalFacts(rnd, None, None, None, None, None, None)
   var claims = Claims(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
   var stats = new Stats(turnsPlayed = 0, totalAllocation = 0.0, satisfaction = 0.5, utility = 0.0)
-  def phi = claims.getPhi
-  val neighbourClaims = mutable.Map.empty[ActorRef, Claims]
-//  val neighbourAccordances = scala.collection.mutable.Map.empty[ActorRef, Claims]
+
+  val neighboursClaims = mutable.Map.empty[ActorRef, Claims]
+  val neighboursTrusts = neighbours.map(_ -> mutable.Map.empty[ActorRef, Double]).toMap
+  var trustsReceived = 0
   var trusts: Map[ActorRef, Double] = neighbours.map(_ -> 1.0).toMap
 
   val gamma = 0.1
+  val MAX_PROP_ITERS = 50
 
   def newTurn() = {
     //TODO: update agent status and roles
@@ -33,7 +35,7 @@ class Agent(id: Int, rndSeed: Long, headAddr: ActorRef, cheater:Boolean = false,
     val step2Facts = step1Facts.updateDemandProvision(shouldCheat = false, NoCheat) //TODO: implement cheating
     facts = step2Facts
     //tell neighbors your opinions //TODO: should this be done at a different stage?
-    neighbours.foreach(_ ! Opinion(this.claims))
+    neighbours.foreach(_ ! PropagatedOpinion(this.claims))
 
     val fakeTrusts = neighbours.map(_ -> 0.0).toMap //FIXME
 //    OpinionAndTrust(self, phi, fakeTrusts, facts)
@@ -76,19 +78,48 @@ class Agent(id: Int, rndSeed: Long, headAddr: ActorRef, cheater:Boolean = false,
       neighbours = newNeighbours
 
     case StartTurn(turnNumber) =>
-      neighbourClaims.empty //TODO: what happen if Opinion message arrives before StartTurn?
+      neighboursClaims.empty //TODO: what happen if Opinion message arrives before StartTurn?
       val opinionAndTrusts = newTurn()
 
 
-    case Opinion(neiClaim) =>
-      neighbourClaims(sender) += neiClaim
-      if(neighbourClaims.keys.size == neighbours.size) {
+    case PropagatedOpinion(neiClaim) =>
+      neighboursClaims(sender) += neiClaim
+      if(neighboursClaims.keys.size == neighbours.size) {
         // calculate accordances
-        val accordances = getAccordances(neighbourClaims)
+        val accordances = getAccordances(neighboursClaims)
         trusts = updateTrusts(accordances)
         //TODO: trust propagation!!!
-        headAddr ! OpinionAndTrust(this.phi, this.trusts, this.facts)
+        trustsReceived = 0
+        neighboursTrusts.values.foreach(_.empty)
+        //        neighbours.foreach(_ ! PropagatedTrust(trusts, 0))
+        //FIXME: test and then remove
+        headAddr ! OpinionAndTrust(this.claims.getPhi, this.trusts, this.facts)
       }
+
+    case PropagatedTrust(neiTrusts, it) =>
+      trustsReceived += 1
+      for ((neiNei, neiTrust) <- neiTrusts
+           if neighbours.contains(neiNei)) {
+        neighboursTrusts(neiNei)(sender) = neiTrust}
+
+      if (trustsReceived == neighbours.size) {
+        // add my own trust to neighbourTrusts mapping
+        this.trusts.foreach({case (nei, myTrust) => neighboursTrusts(nei)(self) = myTrust})
+        // assume that self trust is equal to 1 (maximum)
+        val trustsWithSelfTrust = trusts + (self -> 1.0)
+        val trustsSum = trustsWithSelfTrust.values.sum
+        val normTrustsWithSelfTrust = trustsWithSelfTrust.map({case (a,t) => a -> t/trustsSum})
+        // t_ij' = sum(t_ik*tkj)
+        val updatedTrusts = neighboursTrusts.map({
+          case (j, jTrusts) => j -> jTrusts.map({case (k, tkj) => normTrustsWithSelfTrust(k)*tkj}).sum})
+
+        trusts = updatedTrusts
+
+//        if (it < MAX_PROP_ITERS) //TODO: check other stop conditions - diff
+////        neighbours.foreach(_ ! PropagatedTrust(trusts, it+1)) else //TODO: check how to verify iterations
+        headAddr ! OpinionAndTrust(this.claims.getPhi, this.trusts, this.facts)
+      }
+
 
 
     case Allocation(alloc) =>
@@ -106,8 +137,8 @@ object Agent {
   case class Allocation(alloc: Double)
   case class OpinionAndTrust(opinion: Double, trusts: Map[ActorRef, Double], facts: InstitutionalFacts)
   case class UpdateNeighbours(newNeighbours: Set[ActorRef])
-  case class Opinion(claims: Claims)
-  case class GetTrust(ag: ActorRef)
+  case class PropagatedOpinion(claims: Claims)
+  case class PropagatedTrust(trusts: Map[ActorRef, Double], iteration: Int)
   def props(id: Int, rndSeed: Long, headAddr:ActorRef, cheater:Boolean = false, head:Boolean = false): Props =
     Props(new Agent(id, rndSeed, headAddr, cheater, head))
 }
