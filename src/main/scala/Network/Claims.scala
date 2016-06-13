@@ -1,13 +1,13 @@
 package Network
 
-case class Claims(f1a: Double = 0.0,
-                  f1b: Double = 0.0,
-                  f1c: Double = 0.0,
-                  f2: Double = 0.0,
-                  f3: Double = 0.0,
-                  f4: Double = 0.0,
-                  f5: Double = 0.0,
-                  f6: Double = 0.0
+case class Claims(f1a: Double,
+                  f1b: Double,
+                  f1c: Double,
+                  f2: Double,
+                  f3: Double,
+                  f4: Double,
+                  f5: Double,
+                  f6: Double
                  ) {
   val allClaims = List(this.f1a, this.f1b, this.f1c, this.f2, this.f3, this.f6)
 
@@ -88,4 +88,44 @@ case class Claims(f1a: Double = 0.0,
     ((n-1)/n) * oldMean + (1/n) * newElem
   }
 
+  def accordance(other: Claims) =
+    (this.allClaims, other.allClaims).zipped.map({
+      (mc, oc) => logistic(math.abs(mc - oc), k=15, thresh=0.25)
+    }).sum
+
+  def logistic(x: Double, k:Double = 15, thresh: Double = 0.25) =
+    1 - (1 / (1 + math.exp(-k*(x-thresh))))
+
+  def +(other: Claims) = Claims(
+    this.f1a+other.f1a,
+    this.f1b+other.f1b,
+    this.f1c+other.f1c,
+    this.f2+other.f2,
+    this.f3+other.f3,
+    this.f4+other.f4,
+    this.f5+other.f5,
+    this.f6+other.f6
+  )
+
+  def -(other: Claims) = Claims(
+    this.f1a-other.f1a,
+    this.f1b-other.f1b,
+    this.f1c-other.f1c,
+    this.f2-other.f2,
+    this.f3-other.f3,
+    this.f4-other.f4,
+    this.f5-other.f5,
+    this.f6-other.f6
+  )
+
+  def /(dividend: Double) = Claims(
+    this.f1a/dividend,
+    this.f1b/dividend,
+    this.f1c/dividend,
+    this.f2/dividend,
+    this.f3/dividend,
+    this.f4/dividend,
+    this.f5/dividend,
+    this.f6/dividend
+  )
 }

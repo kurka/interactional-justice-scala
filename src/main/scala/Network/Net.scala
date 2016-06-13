@@ -1,18 +1,15 @@
 package Network
 
-import Network.Agent.{Allocation, OpinionAndTrust}
-import Network.Net.{StartTurn, TurnFinished}
+import Network.Agent.{Allocation, OpinionAndTrust, UpdateNeighbours}
+import Network.Net.{NewGame, StartTurn, TurnFinished}
 import akka.actor.{Actor, ActorRef, Props}
-import akka.pattern.ask
 
 import scala.collection.mutable.ArrayBuffer
-import scala.collection.parallel.mutable.ParArray
 import scala.util.Random
 
 
 class Net(size: Int, nNeighbours: Int, nCheaters:Int, rndSeed: Int, inbox: ActorRef) extends Actor {
   val rnd = new Random(rndSeed)
-  val nei_offsets = (-nNeighbours/2 to (nNeighbours/2)).toSet
   val head = rnd.nextInt(size)
   val nNonCheaters = size - nCheaters
 
@@ -21,13 +18,10 @@ class Net(size: Int, nNeighbours: Int, nCheaters:Int, rndSeed: Int, inbox: Actor
   var pool = 0.0
   val statsAggregator = ArrayBuffer.empty[Stats]
 
-  val agents = 0 until size map {
-    idx =>
-      if (idx != head) context.actorOf(Agent.props(idx, get_init_neigh(idx), rnd.nextLong()))
-      else context.actorOf(Agent.props(idx, get_init_neigh(idx), rnd.nextLong(), head = true))
-  }
+  val agents = 0 until size map {idx => context.actorOf(Agent.props(idx, rnd.nextLong(), self, head = idx == head))} //TODO: change the head to be really an agent
 
-  def get_init_neigh(idx: Int) = (nei_offsets map {off => (idx+off+size)%size}) - idx
+  lazy val nei_offsets = (-nNeighbours/2 to (nNeighbours/2)).toSet
+  def getInitNeigh(idx: Int) = ((nei_offsets map { off => (idx+off+size)%size}) - idx).map {agents(_)}
 
   //  def turn() = {
   //    //demand provide
@@ -70,6 +64,8 @@ class Net(size: Int, nNeighbours: Int, nCheaters:Int, rndSeed: Int, inbox: Actor
   override def toString = agents.map(_.toString) mkString "\n"
 
   def receive = {
+    case NewGame =>
+      for ((ag, idx) <- agents.zipWithIndex) {ag ! UpdateNeighbours(getInitNeigh(idx))}
     case StartTurn(turnNumber) =>
       agents.foreach(_ ! StartTurn(turnNumber))
       agentsRepDis.clear()
@@ -78,9 +74,9 @@ class Net(size: Int, nNeighbours: Int, nCheaters:Int, rndSeed: Int, inbox: Actor
       statsAggregator.clear()
 
 
-    case OpinionAndTrust(ag, opinion, trusts, facts) =>
-      agentsRepDis += (ag -> (1-opinion)) //TODO: handle trust
-      agentsFacts(ag) = facts
+    case OpinionAndTrust(opinion, trusts, facts) =>
+      agentsRepDis += (sender -> (1-opinion)) //TODO: handle trust
+      agentsFacts(sender) = facts
       pool += facts.provided.get
       if(agentsRepDis.length == agents.length){
         val allocOrder = rnd.shuffle(agentsRepDis).sortWith(_._2 > _._2)
@@ -103,6 +99,7 @@ class Net(size: Int, nNeighbours: Int, nCheaters:Int, rndSeed: Int, inbox: Actor
 }
 
 object Net {
+  case object NewGame
   case class StartTurn(turnNumber: Int)
   case class TurnFinished(roundStats: Stats)
   def props(size: Int, nNeighbours: Int, nCheaters:Int, rndSeed: Int, inbox: ActorRef): Props = Props(new Net(size, nNeighbours, nCheaters, rndSeed, inbox))
