@@ -66,13 +66,13 @@ class Net(size: Int, nNeighbours: Int, nCheaters:Int, rndSeed: Int, inbox: Actor
   def receive = {
     case NewGame =>
       for ((ag, idx) <- agents.zipWithIndex) {ag ! UpdateNeighbours(getInitNeigh(idx))}
+
     case StartTurn(turnNumber) =>
       agents.foreach(_ ! StartTurn(turnNumber))
       agentsRepDis.clear()
       pool = 0.0
       agentsFacts.clear()
       statsAggregator.clear()
-
 
     case OpinionAndTrust(opinion, trusts, facts) =>
       agentsRepDis += (sender -> (1-opinion)) //TODO: handle trust
@@ -86,10 +86,15 @@ class Net(size: Int, nNeighbours: Int, nCheaters:Int, rndSeed: Int, inbox: Actor
             val newAlloc = math.min(agentsFacts(ag).demanded.get, remPool)
             (remPool-newAlloc, allocs :+ newAlloc)
         })
-        assert(remPool==0, "The pot wasn't completly distributed!")
-        rnd.shuffle(allocOrder zip allocations).foreach({
-          case ((ag: ActorRef, _), alloc: Double) => ag ! Allocation(alloc) // FIXME: this doesnt work with cheating in appropriation!!
-        })
+        if(remPool != 0)
+        {println("ferrou!")}
+        else {
+
+          assert(remPool == 0, "The pot wasn't completly distributed! Remaining " + remPool.toString + "\n" + agentsFacts + "\n" + allocations + "\n" + allocOrder)
+          rnd.shuffle(allocOrder zip allocations).foreach({
+            case ((ag: ActorRef, _), alloc: Double) => ag ! Allocation(alloc) // FIXME: this doesnt work with cheating in appropriation!!
+          })
+        }
       }
 
     case TurnFinished(roundStats) =>

@@ -1,5 +1,5 @@
 import Network.Net
-import Network.Net.StartTurn
+import Network.Net.{NewGame, StartTurn}
 import akka.actor.{Actor, ActorRef, ActorSystem, Inbox, PoisonPill, Props}
 
 import scala.concurrent.duration._
@@ -11,11 +11,12 @@ object ActorsGame extends App {
   val system = ActorSystem("lpgp")
   val inbox = Inbox.create(system)
   val net = system.actorOf(Net.props(10, 2, 0, rndSeed, inbox.getRef()), "net")
-  val nTurns = 100
+  val nTurns = 1000
 
   println(net)
 
   //  (1 until nTurns).foreach(println(net.turn()))
+  inbox.send(net, NewGame)
   for (t <- 1 until nTurns) {
       inbox.send(net, StartTurn(t))
       println(inbox.receive(60.seconds))

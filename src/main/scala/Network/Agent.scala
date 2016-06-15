@@ -8,6 +8,7 @@ import Network.Net._
 import akka.actor.{Actor, ActorRef, Props}
 
 import scala.collection.mutable
+import scala.collection.mutable.ArrayBuffer
 
 
 class Agent(id: Int, rndSeed: Long, headAddr: ActorRef, cheater:Boolean = false, var isHead:Boolean = false) extends Actor {
@@ -17,7 +18,7 @@ class Agent(id: Int, rndSeed: Long, headAddr: ActorRef, cheater:Boolean = false,
   var claims = Claims(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
   var stats = new Stats(turnsPlayed = 0, totalAllocation = 0.0, satisfaction = 0.5, utility = 0.0)
 
-  val neighboursClaims = mutable.Map.empty[ActorRef, Claims]
+  val neighboursClaims = ArrayBuffer.empty[(ActorRef, Claims)]//mutable.Map.empty[ActorRef, Claims]
   val neighboursTrusts = neighbours.map(_ -> mutable.Map.empty[ActorRef, Double]).toMap
   var trustsReceived = 0
   var trusts: Map[ActorRef, Double] = neighbours.map(_ -> 1.0).toMap
@@ -35,13 +36,14 @@ class Agent(id: Int, rndSeed: Long, headAddr: ActorRef, cheater:Boolean = false,
     val step2Facts = step1Facts.updateDemandProvision(shouldCheat = false, NoCheat) //TODO: implement cheating
     facts = step2Facts
     //tell neighbors your opinions //TODO: should this be done at a different stage?
-    neighbours.foreach(_ ! PropagatedOpinion(this.claims))
+    neighbours.foreach({nei => println(nei); nei ! PropagatedOpinion(this.claims)})
+//    neighbours.foreach({nei => nei ! 2})
 
-    val fakeTrusts = neighbours.map(_ -> 0.0).toMap //FIXME
+//    val fakeTrusts = neighbours.map(_ -> 0.0).toMap //FIXME
 //    OpinionAndTrust(self, phi, fakeTrusts, facts)
   }
 
-  def getAccordances(neighbourClaims: mutable.Map[ActorRef, Claims]): Map[ActorRef, Double] = {
+  def getAccordances(neighbourClaims: Map[ActorRef, Claims]): Map[ActorRef, Double] = {
     val contextClaimsSums = neighbourClaims.values.foldLeft (this.claims) (_+_)
     val contextSize = neighbourClaims.size
 
@@ -78,15 +80,16 @@ class Agent(id: Int, rndSeed: Long, headAddr: ActorRef, cheater:Boolean = false,
       neighbours = newNeighbours
 
     case StartTurn(turnNumber) =>
-      neighboursClaims.empty //TODO: what happen if Opinion message arrives before StartTurn?
-      val opinionAndTrusts = newTurn()
+      neighboursClaims.clear() //TODO: what happen if Opinion message arrives before StartTurn?
+      newTurn()
 
 
     case PropagatedOpinion(neiClaim) =>
-      neighboursClaims(sender) += neiClaim
-      if(neighboursClaims.keys.size == neighbours.size) {
+      neighboursClaims += (sender -> neiClaim)
+      println(self.toString() + neighboursClaims.size)
+      if(neighboursClaims.size == neighbours.size) {
         // calculate accordances
-        val accordances = getAccordances(neighboursClaims)
+        val accordances = getAccordances(neighboursClaims.toMap)
         trusts = updateTrusts(accordances)
         //TODO: trust propagation!!!
         trustsReceived = 0
@@ -95,31 +98,32 @@ class Agent(id: Int, rndSeed: Long, headAddr: ActorRef, cheater:Boolean = false,
         //FIXME: test and then remove
         headAddr ! OpinionAndTrust(this.claims.getPhi, this.trusts, this.facts)
       }
+      else if(neighboursClaims.size > neighbours.size)
+        println("what???")
 
-    case PropagatedTrust(neiTrusts, it) =>
-      trustsReceived += 1
-      for ((neiNei, neiTrust) <- neiTrusts
-           if neighbours.contains(neiNei)) {
-        neighboursTrusts(neiNei)(sender) = neiTrust}
-
-      if (trustsReceived == neighbours.size) {
-        // add my own trust to neighbourTrusts mapping
-        this.trusts.foreach({case (nei, myTrust) => neighboursTrusts(nei)(self) = myTrust})
-        // assume that self trust is equal to 1 (maximum)
-        val trustsWithSelfTrust = trusts + (self -> 1.0)
-        val trustsSum = trustsWithSelfTrust.values.sum
-        val normTrustsWithSelfTrust = trustsWithSelfTrust.map({case (a,t) => a -> t/trustsSum})
-        // t_ij' = sum(t_ik*tkj)
-        val updatedTrusts = neighboursTrusts.map({
-          case (j, jTrusts) => j -> jTrusts.map({case (k, tkj) => normTrustsWithSelfTrust(k)*tkj}).sum})
-
-        trusts = updatedTrusts
-
-//        if (it < MAX_PROP_ITERS) //TODO: check other stop conditions - diff
-////        neighbours.foreach(_ ! PropagatedTrust(trusts, it+1)) else //TODO: check how to verify iterations
-        headAddr ! OpinionAndTrust(this.claims.getPhi, this.trusts, this.facts)
-      }
-
+//    case PropagatedTrust(neiTrusts, it) =>
+//      trustsReceived += 1
+//      for ((neiNei, neiTrust) <- neiTrusts
+//           if neighbours.contains(neiNei)) {
+//        neighboursTrusts(neiNei)(sender) = neiTrust}
+//
+//      if (trustsReceived == neighbours.size) {
+//        // add my own trust to neighbourTrusts mapping
+//        this.trusts.foreach({case (nei, myTrust) => neighboursTrusts(nei)(self) = myTrust})
+//        // assume that self trust is equal to 1 (maximum)
+//        val trustsWithSelfTrust = trusts + (self -> 1.0)
+//        val trustsSum = trustsWithSelfTrust.values.sum
+//        val normTrustsWithSelfTrust = trustsWithSelfTrust.map({case (a,t) => a -> t/trustsSum})
+//        // t_ij' = sum(t_ik*tkj)
+//        val updatedTrusts = neighboursTrusts.map({
+//          case (j, jTrusts) => j -> jTrusts.map({case (k, tkj) => normTrustsWithSelfTrust(k)*tkj}).sum})
+//
+//        trusts = updatedTrusts
+//
+////        if (it < MAX_PROP_ITERS) //TODO: check other stop conditions - diff
+//////        neighbours.foreach(_ ! PropagatedTrust(trusts, it+1)) else //TODO: check how to verify iterations
+//        headAddr ! OpinionAndTrust(this.claims.getPhi, this.trusts, this.facts)
+//      }
 
 
     case Allocation(alloc) =>
@@ -127,6 +131,7 @@ class Agent(id: Int, rndSeed: Long, headAddr: ActorRef, cheater:Boolean = false,
       val turnOpinion = updateOpinions()
       sender ! TurnFinished(turnOpinion)
 
+    case x: Any => println("Error! Message not identified!\n" + x.toString)
 
 
   }
