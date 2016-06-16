@@ -19,7 +19,7 @@ object ActorsGame extends App {
   inbox.send(net, NewGame)
   for (t <- 1 until nTurns) {
       inbox.send(net, StartTurn(t))
-      println(inbox.receive(60.seconds))
+      println(inbox.receive(10.seconds))
   }
   net ! PoisonPill
 //  system.stop(net)

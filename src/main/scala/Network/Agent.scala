@@ -36,7 +36,7 @@ class Agent(id: Int, rndSeed: Long, headAddr: ActorRef, cheater:Boolean = false,
     val step2Facts = step1Facts.updateDemandProvision(shouldCheat = false, NoCheat) //TODO: implement cheating
     facts = step2Facts
     //tell neighbors your opinions //TODO: should this be done at a different stage?
-    neighbours.foreach({nei => println(nei); nei ! PropagatedOpinion(this.claims)})
+    neighbours.foreach({nei => nei ! PropagatedOpinion(this.claims)})
 //    neighbours.foreach({nei => nei ! 2})
 
 //    val fakeTrusts = neighbours.map(_ -> 0.0).toMap //FIXME
@@ -80,7 +80,7 @@ class Agent(id: Int, rndSeed: Long, headAddr: ActorRef, cheater:Boolean = false,
       neighbours = newNeighbours
 
     case StartTurn(turnNumber) =>
-      neighboursClaims.clear() //TODO: what happen if Opinion message arrives before StartTurn?
+//      neighboursClaims.clear() //TODO: what happen if Opinion message arrives before StartTurn?
       newTurn()
 
 
@@ -130,6 +130,7 @@ class Agent(id: Int, rndSeed: Long, headAddr: ActorRef, cheater:Boolean = false,
       receiveAllocations(alloc)
       val turnOpinion = updateOpinions()
       sender ! TurnFinished(turnOpinion)
+      neighboursClaims.clear()
 
     case x: Any => println("Error! Message not identified!\n" + x.toString)
 
